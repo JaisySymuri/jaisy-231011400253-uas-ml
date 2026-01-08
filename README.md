@@ -45,32 +45,6 @@ Machine Learning
    |G1, G2, G3|11, 11, 11|Nilai ujian pada setiap tahun pembelajaran adalah 11. |
 
 
-# 2. Model yang Digunakan
-   Model yang digunakan untuk membuat model klasifikasi untuk memprediksi kelas dari dataset Student Performance adalah **Decision Tree** dan **Support Vector Machine (SVM)**. Alasannya adalah:
-
-- Decision Tree mampu menangani data campuran (numerik dan kategorikal), mudah diinterpretasikan, serta dapat menunjukkan faktor paling berpengaruh terhadap performa siswa (seperti jam belajar atau dukungan keluarga).
-- SVM efektif untuk mencari batas pemisah terbaik antar kelas dengan akurasi tinggi, terutama ketika data memiliki dimensi tinggi atau hubungan antar fitur yang kompleks.
-
-# 3. Hasil Evaluasi dan Pembahasan
-   Dataset displit menggunakan random state dan stratify menjadi 80% data untuk training dan 20% untuk testing. Hasilnya adalah:
-
-   Decision Tree:
-
-- Model mampu mengenali kelas Pass dengan baik, tetapi performanya sangat lemah untuk kelas Fail (precision & recall rendah).
-- Dari confusion matrix, terlihat banyak kasus Fail diprediksi sebagai Pass (17 dari 20).
-- AUC hanya 0.606, menandakan kemampuan pemisahan antar kelas masih rendah.
-- Decision Tree masih overfitting ke kelas mayoritas (Pass) dan kurang mampu mendeteksi siswa yang gagal.
-
-SVM:
-
-- SVM memiliki akurasi dan F1-score lebih tinggi dibanding Decision Tree.
-- Kemampuan mengenali kelas Pass meningkat signifikan (Recall = 0.95).
-- Walau performa untuk kelas Fail tetap rendah, SVM lebih seimbang dan konsisten.
-- AUC meningkat menjadi 0.671, menunjukkan pemisahan antar kelas yang lebih baik.
-- SVM memberikan kinerja klasifikasi yang lebih baik secara keseluruhan, terutama dalam membedakan siswa yang lulus, meskipun masih kesulitan mengenali siswa yang gagal.
-
-Kesimpulannya, SVM outperform Decision Tree dalam hal akurasi, recall, dan kemampuan generalisasi. Namun, Decision Tree tetap berguna untuk interpretasi faktor-faktor penting yang memengaruhi performa siswa. Kombinasi keduanya bisa digunakan: Decision Tree untuk insight, SVM untuk prediksi terbaik.
-
 
 
 
