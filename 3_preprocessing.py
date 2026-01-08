@@ -1,54 +1,73 @@
 import os
 import pandas as pd
+import numpy as np
+import joblib
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-import joblib
-import numpy as np
 from scipy import sparse
 
-
-INPUT_CSV = '1-student_performance.csv'
+# ============================================================
+# Configuration
+# ============================================================
+INPUT_CSV = '1_student_performance.csv'
 PREPROCESSED_CSV = 'student_preprocessed.csv'
 PREPROCESSOR_JOBLIB = 'preprocessor.joblib'
 
+GRADE_COLS = ['G1', 'G2', 'G3']
+CLASS_TARGET = 'pass'     # classification
+REG_TARGET = 'G3'         # regression
+
+# ============================================================
+# Load dataset
+# ============================================================
 if not os.path.exists(INPUT_CSV):
-    raise FileNotFoundError(f"{INPUT_CSV} not found in working dir: {os.getcwd()}")
+    raise FileNotFoundError(f"{INPUT_CSV} not found in {os.getcwd()}")
 
-df = pd.read_csv(INPUT_CSV, low_memory=False, encoding='utf-8', on_bad_lines='skip')
-print('shape:', df.shape)
-print(df.head())
+df = pd.read_csv(
+    INPUT_CSV,
+    encoding='utf-8',
+    low_memory=False,
+    on_bad_lines='skip'
+)
 
+print('Original shape:', df.shape)
 
-required_grade_cols = {'G1','G2','G3'}
-if not required_grade_cols.issubset(df.columns):
-    print('Warning: expected grade columns not found. Current columns:', df.columns.tolist())
+# ============================================================
+# Basic validation
+# ============================================================
+missing = set(GRADE_COLS) - set(df.columns)
+if missing:
+    raise ValueError(f"Missing required grade columns: {missing}")
 
-# Drop rows with all-NaN or missing final grade
-if 'G3' in df.columns:
-    df = df.dropna(subset=['G3'])
+# Drop rows without final grade
+df = df.dropna(subset=[REG_TARGET])
 
-# Create binary target: pass if G3 >= 10 (change threshold if you prefer)
-df['pass'] = (df['G3'] >= 10).astype(int)
+# ============================================================
+# Create targets (DO NOT DROP RAW GRADE)
+# ============================================================
+# Classification target
+df[CLASS_TARGET] = (df[REG_TARGET] >= 10).astype(int)
 
-# Optionally drop the raw grades to avoid leakage
-if set(['G1','G2','G3']).issubset(df.columns):
-    df = df.drop(columns=['G1','G2','G3'])
+# ============================================================
+# Feature / target separation
+# ============================================================
+# Exclude targets from features
+X = df.drop(columns=[CLASS_TARGET, REG_TARGET])
+y_reg = df[REG_TARGET]
+y_clf = df[CLASS_TARGET]
 
-# 01_preprocessing.ipynb - cell 5
-# Separate X and y
-X = df.drop(columns=['pass'])
-y = df['pass']
-
-# Identify column types
+# ============================================================
+# Column types
+# ============================================================
 cat_cols = X.select_dtypes(include=['object']).columns.tolist()
 num_cols = X.select_dtypes(exclude=['object']).columns.tolist()
 
-print('categorical columns:', cat_cols)
-print('numeric columns:', num_cols)
+print('Categorical columns:', cat_cols)
+print('Numeric columns:', num_cols)
 
-# 01_preprocessing.ipynb - cell 6
-# Build preprocessor. OneHotEncoder for categoricals, StandardScaler for numerics.
+# ============================================================
+# Preprocessor (task-agnostic)
+# ============================================================
 preprocessor = ColumnTransformer(
     transformers=[
         ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), cat_cols),
@@ -57,35 +76,55 @@ preprocessor = ColumnTransformer(
     remainder='drop'
 )
 
+# Fit ONLY on features
 preprocessor.fit(X)
 
-try:
-    cat_names = preprocessor.named_transformers_['cat'].get_feature_names_out(cat_cols).tolist()
-except Exception:
-    # For older sklearn versions
-    cat_names = []
-    if hasattr(preprocessor.named_transformers_['cat'], 'get_feature_names'):
-        cat_names = preprocessor.named_transformers_['cat'].get_feature_names(cat_cols).tolist()
-
-feature_names = cat_names + num_cols
+# ============================================================
+# Transform features
+# ============================================================
 X_transformed = preprocessor.transform(X)
 
-if sparse.issparse(X_transformed):
-    # Tell Pylance: inside this block, it's definitely sparse
-    X_transformed = sparse.csr_matrix(X_transformed).toarray()
-else:
-    X_transformed = np.asarray(X_transformed)
+X_transformed = np.asarray(preprocessor.transform(X))
 
-X_preproc_df = pd.DataFrame(X_transformed, columns=feature_names, index=X.index)
 
-# Combine with target
-preprocessed = pd.concat([X_preproc_df, y.reset_index(drop=True)], axis=1)
+# Feature names
+cat_names = []
+try:
+    cat_names = (
+        preprocessor.named_transformers_['cat']
+        .get_feature_names_out(cat_cols)
+        .tolist()
+    )
+except Exception:
+    pass
 
-# 01_preprocessing.ipynb - cell 7
-# Save preprocessed CSV and the fitted preprocessor
-preprocessed.to_csv(PREPROCESSED_CSV, index=False)
+feature_names = cat_names + num_cols
+
+X_preproc_df = pd.DataFrame(
+    X_transformed,
+    columns=feature_names,
+    index=df.index
+)
+
+# ============================================================
+# Combine features + targets
+# ============================================================
+preprocessed_df = pd.concat(
+    [
+        X_preproc_df,
+        y_reg.reset_index(drop=True),
+        y_clf.reset_index(drop=True)
+    ],
+    axis=1
+)
+
+# ============================================================
+# Save artifacts
+# ============================================================
+preprocessed_df.to_csv(PREPROCESSED_CSV, index=False)
 joblib.dump(preprocessor, PREPROCESSOR_JOBLIB)
 
-print('Saved:', PREPROCESSED_CSV, PREPROCESSOR_JOBLIB)
-
-
+print('\nSaved files:')
+print('-', PREPROCESSED_CSV)
+print('-', PREPROCESSOR_JOBLIB)
+print('Final dataset shape:', preprocessed_df.shape)
