@@ -4,7 +4,7 @@ Jaisy M. Algifari
 
 231011400253
 
-Tugas UTS\
+Tugas UAS\
 Machine Learning
 
 # 1. Deskripsi Dataset
